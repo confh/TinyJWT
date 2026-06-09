@@ -1,0 +1,129 @@
+import std "json";
+import std "time";
+
+export native fn base64urlEncode(input: string): string {
+    go {
+        import "encoding/base64"
+        return base64.RawURLEncoding.EncodeToString([]byte(input))
+    }
+}
+
+export native fn base64urlDecode(input: string): string {
+    go {
+        import "encoding/base64"
+        data, err := base64.RawURLEncoding.DecodeString(input)
+        if err != nil {
+            return ""
+        }
+        return string(data)
+    }
+}
+
+native fn hmacSha256(message: string, secret: string): string {
+    go {
+        import "crypto/hmac"
+        import "crypto/sha256"
+        import "encoding/base64"
+
+        mac := hmac.New(sha256.New,[]byte(secret))
+        mac.Write([]byte(message))
+        sig := mac.Sum(nil)
+        return base64.RawURLEncoding.EncodeToString(sig)
+    }
+}
+
+native fn secureCompare(a: string, b: string): bool {
+    go {
+        import "crypto/subtle"
+        return subtle.ConstantTimeCompare([]byte(a),[]byte(b)) == 1
+    }
+}
+
+export class JWT {
+    field secret = "";
+
+    fn init(secret: string) {
+        this.secret = secret;
+    }
+
+    fn sign(payload, expireSeconds: number): string {
+        let iat = time.nowSec();
+        payload["iat"] = iat;
+
+        if expireSeconds > 0 {
+            payload["exp"] = iat + expireSeconds;
+        }
+
+        let header = {
+            "alg": "HS256",
+            "typ": "JWT"
+        };
+
+        let headerStr = json.stringify(header);
+        let payloadStr = json.stringify(payload);
+
+        let encodedHeader = base64urlEncode(headerStr);
+        let encodedPayload = base64urlEncode(payloadStr);
+
+        let message = `${encodedHeader}.${encodedPayload}`;
+        let signature = hmacSha256(message, this.secret);
+
+        return `${message}.${signature}`;
+    }
+
+    fn verify(token: string) {
+        let parts = token.split(".")
+        if parts.length() != 3 {
+            return {
+                "valid": false,
+                "error": "Invalid token structure (must contain header, payload, and signature)"
+            };
+        }
+
+        let headerB64 = parts.get(0);
+        let payloadB64 = parts.get(1);
+        let signature = parts.get(2);
+
+        let message = `${headerB64}.${payloadB64}`;
+        let expectedSignature = hmacSha256(message, this.secret);
+
+        if ! secureCompare(signature, expectedSignature) {
+            return {
+                "valid": false,
+                "error": "Signature verification failed (tampered token)"
+            };
+        }
+
+        let payloadStr = base64urlDecode(payloadB64);
+        if payloadStr == "" {
+            return {
+                "valid": false,
+                "error": "Failed to decode base64url payload"
+            };
+        }
+
+        let payload = json.parse(payloadStr);
+        if typeof payload == "null" {
+            return {
+                "valid": false,
+                "error": "Failed to parse payload JSON"
+            };
+        }
+
+        if typeof payload["exp"] != "null" {
+            let now = time.nowSec();
+            if now > payload["exp"] {
+                return {
+                    "valid": false,
+                    "error": "Token has expired",
+                    "payload": payload
+                };
+            }
+        }
+
+        return {
+            "valid": true,
+            "payload": payload
+        };
+    }
+}

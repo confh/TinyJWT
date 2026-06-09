@@ -1,0 +1,19 @@
+{
+  "name": "JWT",
+  "version": "0.1.0",
+  "entry": "src/main.tiny",
+  "outDir": "dist",
+  "target": "windows-amd64",
+  "scripts": {
+    "build": "tiny build",
+    "dist": "tiny dist",
+    "pack": "tiny pack",
+    "start": "tiny run"
+  },
+  "dependencies": {},
+  "plugins": [],
+  "compilerOptions": {
+    "stackTraces": true,
+    "strict": false
+  }
+}
