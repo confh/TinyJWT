@@ -46,7 +46,7 @@ export class JWT {
         this.secret = secret;
     }
 
-    fn sign(payload, expireSeconds: number): string {
+    fn sign(payload: object, expireSeconds: number): string {
         let iat = time.nowSec();
         payload["iat"] = iat;
 
