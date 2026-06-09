@@ -1,14 +1,14 @@
 import std "json";
 import std "time";
 
-export native fn base64urlEncode(input: string): string {
+native fn base64urlEncode(input: string): string {
     go {
         import "encoding/base64"
         return base64.RawURLEncoding.EncodeToString([]byte(input))
     }
 }
 
-export native fn base64urlDecode(input: string): string {
+native fn base64urlDecode(input: string): string {
     go {
         import "encoding/base64"
         data, err := base64.RawURLEncoding.DecodeString(input)
@@ -123,6 +123,67 @@ export class JWT {
 
         return {
             "valid": true,
+            "payload": payload
+        };
+    }
+
+    fn decode(token: string) {
+        let parts = token.split(".");
+        if parts.length() != 3 {
+            return {
+                "success": false,
+                "error": "Invalid token structure (must contain header, payload, and signature)",
+                "header": null,
+                "payload": null
+            };
+        }
+
+        let headerB64 = parts.get(0);
+        let payloadB64 = parts.get(1);
+
+        let headerStr = base64urlDecode(headerB64);
+        if headerStr == "" {
+            return {
+                "success": false,
+                "error": "Failed to decode base64url header",
+                "header": null,
+                "payload": null
+            };
+        }
+
+        let payloadStr = base64urlDecode(payloadB64);
+        if payloadStr == "" {
+            return {
+                "success": false,
+                "error": "Failed to decode base64url payload",
+                "header": null,
+                "payload": null
+            };
+        }
+
+        let header = json.parse(headerStr);
+        if typeof header == "null" {
+            return {
+                "success": false,
+                "error": "Failed to parse header JSON",
+                "header": null,
+                "payload": null
+            };
+        }
+
+        let payload = json.parse(payloadStr);
+        if typeof payload == "null" {
+            return {
+                "success": false,
+                "error": "Failed to parse payload JSON",
+                "header": header,
+                "payload": null
+            };
+        }
+
+        return {
+            "success": true,
+            "header": header,
             "payload": payload
         };
     }
